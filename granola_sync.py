@@ -150,7 +150,7 @@ def sync():
     meetings = asyncio.run(fetch_meetings(access_token()))
     OUT_DIR.mkdir(exist_ok=True)
     existing = {}
-    for path in OUT_DIR.glob("*.md"):
+    for path in OUT_DIR.rglob("*.md"):
         match = re.search(r"^granola_id: (\S+)", path.read_text(), re.M)
         if match:
             existing[match[1]] = path
@@ -161,15 +161,17 @@ def sync():
         path = existing.get(m.get("id"))
         if path is None:
             name = re.sub(r'[\\/:*?"<>|#^\[\]]', "-", m.get("title")).strip()
-            path = OUT_DIR / f"{when:%Y-%m-%d} {name}.md"
+            day_dir = OUT_DIR / f"{when:%Y-%m-%d}"
+            path = day_dir / f"{name}.md"
             if path.exists():
-                path = OUT_DIR / f"{when:%Y-%m-%d} {name} {m.get('id')[:8]}.md"
+                path = day_dir / f"{name} {m.get('id')[:8]}.md"
             counts["new"] += 1
         elif path.read_text() == content:
             counts["unchanged"] += 1
             continue
         else:
             counts["updated"] += 1
+        path.parent.mkdir(exist_ok=True)
         path.write_text(content)
 
     print(f"{datetime.now():%Y-%m-%d %H:%M} synced {len(meetings)} meetings: {counts}")

@@ -59,7 +59,7 @@ Both tools return XML-like text (`<meetings_data><meeting ...>`), which is parse
 
 ### Writing
 
-Each meeting becomes `meetings/YYYY-MM-DD <title>.md`:
+Each meeting becomes `meetings/YYYY-MM-DD/<title>.md`, grouped into one folder per meeting date:
 
 ```markdown
 ---
@@ -84,8 +84,8 @@ url: https://notes.granola.ai/d/6ebe35bf-f1e5-40f3-803a-22c2baa98e79
 
 - `date` is the meeting's local start time as Granola reports it; the timezone is dropped.
 - Characters that are invalid in filenames or Obsidian links (`\ / : * ? " < > | # ^ [ ]`) become `-`.
-- Existing files are matched by `granola_id`, not filename. A meeting renamed in Granola keeps its original filename, and its content updates.
-- If a new meeting's filename is already taken by a different meeting, the first 8 characters of its ID are appended.
+- Existing files are matched by `granola_id` anywhere under `meetings/`, not by path. A meeting renamed in Granola keeps its original filename, and its content updates.
+- If a new meeting's filename is already taken in that date folder by a different meeting (e.g. two `Standup - SFE` on the same day), the first 8 characters of its ID are appended.
 - A file is only rewritten when its content changed.
 
 **Local edits are overwritten** while a meeting is still inside the 30-day window, because Granola is treated as the source of truth. Once a meeting ages out, its file is never touched again.
