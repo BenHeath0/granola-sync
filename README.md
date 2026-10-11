@@ -157,3 +157,24 @@ Any error during a sync shows a macOS notification titled **Granola sync failed*
 - **Rate limit**: Granola's MCP averages around 100 requests per minute. A sync uses 1 + ⌈meetings / 10⌉ tool calls, so this is not a concern.
 - **Undocumented format**: the XML-like tool output isn't a documented contract. If Granola changes it, parsing may break or return no meetings. Check the `synced N meetings` count in the log.
 - **Refresh token lifetime** is not documented by Granola. Expect to rerun `login` occasionally.
+
+## Daily action items
+
+`daily_actions.sh` builds a morning digest of action items from the previous workday's meetings (Friday's on Mondays):
+
+1. Runs `granola_sync.py` to pick up meetings that ended after the 18:00 sync.
+2. Pipes every note in `meetings/<day>/` into `claude -p` (Sonnet, no tools, no MCP servers, no user settings) and asks for action items, including ones outside `Next Steps` sections.
+3. Writes `actions/<day>.md` as a checklist: Ben's items first, then everyone else's with the owner in bold (`Unassigned` when nobody owns it). Each item links back to its Granola note.
+4. Shows a dialog with the item count and an **Open** button that opens the digest.
+
+If there's no `meetings/<day>/` folder, it exits without writing anything. `actions/` is gitignored like `meetings/`.
+
+A second launchd agent, `~/Library/LaunchAgents/com.benheath.daily-actions.plist`, runs it at 08:00 Monday–Friday. It has the same shape as the sync plist above, with `ProgramArguments` set to the script and `StartCalendarInterval` as an array of five dicts (`Weekday` 1–5, `Hour` 8, `Minute` 0). Output goes to `~/Library/Logs/daily-actions.log`.
+
+```sh
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.benheath.daily-actions.plist
+launchctl kickstart gui/$(id -u)/com.benheath.daily-actions
+tail ~/Library/Logs/daily-actions.log
+```
+
+The dialog blocks until a button is clicked. If the Mac is off at 08:00, that day's run is skipped; if it's asleep, the run happens on wake.
