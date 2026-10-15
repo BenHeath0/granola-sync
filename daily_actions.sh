@@ -12,7 +12,7 @@ day=$(date -v-${back}d +%F)
 out="actions/$day.md"
 mkdir -p actions
 
-for f in meetings/"$day"/*.md; do printf '<note path="%s">\n' "$f"; cat "$f"; printf '\n</note>\n'; done |
+for f in meetings/"$day"/*.md; do printf '<note path="%s">\n' "$f"; sed '/^## Transcript$/,$d' "$f"; printf '\n</note>\n'; done |
   "$HOME/.local/bin/claude" -p "Above are Ben Heath's meeting notes from $day. Extract every action item, commitment, or follow-up discussed, including ones outside 'Next Steps' sections. Merge duplicates across meetings. Output only this markdown, no preamble:
 
 # Action items: $day

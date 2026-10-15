@@ -102,6 +102,16 @@ async def call(session, tool, args):
     return ET.fromstring(text[start:]).findall("meeting")
 
 
+async def transcript(session, meeting_id):
+    result = await session.call_tool("get_meeting_transcript", {"meeting_id": meeting_id})
+    text = result.content[0].text
+    # output is a warning preamble followed by a json object
+    start = text.find("{")
+    if result.is_error or start == -1:
+        return ""
+    return (json.loads(text[start:]).get("transcript") or "").strip()
+
+
 async def fetch_meetings(token):
     http = httpx2.AsyncClient(headers={"Authorization": f"Bearer {token}"}, timeout=120)
     async with http, streamable_http_client(MCP_URL, http_client=http) as (read, write):
@@ -117,10 +127,11 @@ async def fetch_meetings(token):
                 meetings += await call(session, "get_meetings", {"meeting_ids": ids[i:i + 10]})
             if len(meetings) != len(ids):
                 raise RuntimeError(f"listed {len(ids)} meetings but fetched {len(meetings)}")
-            return meetings
+            transcripts = {id: await transcript(session, id) for id in ids}
+            return meetings, transcripts
 
 
-def render(m):
+def render(m, transcript):
     when = datetime.strptime(m.get("date").rsplit(" ", 1)[0], "%b %d, %Y %I:%M %p")
     title = m.get("title")
     return when, "\n".join([
@@ -143,11 +154,15 @@ def render(m):
         "",
         m.findtext("summary", "").strip(),
         "",
+        "## Transcript",
+        "",
+        transcript,
+        "",
     ])
 
 
 def sync():
-    meetings = asyncio.run(fetch_meetings(access_token()))
+    meetings, transcripts = asyncio.run(fetch_meetings(access_token()))
     OUT_DIR.mkdir(exist_ok=True)
     existing = {}
     for path in OUT_DIR.rglob("*.md"):
@@ -157,7 +172,7 @@ def sync():
 
     counts = {"new": 0, "updated": 0, "unchanged": 0}
     for m in meetings:
-        when, content = render(m)
+        when, content = render(m, transcripts[m.get("id")])
         path = existing.get(m.get("id"))
         if path is None:
             name = re.sub(r'[\\/:*?"<>|#^\[\]]', "-", m.get("title")).strip()

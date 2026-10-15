@@ -50,12 +50,13 @@ The auth file lives outside this directory, so it never ends up in git.
 
 ### Fetching
 
-The script opens a Streamable HTTP MCP session and calls two tools:
+The script opens a Streamable HTTP MCP session and calls three tools:
 
 - `list_meetings` with `time_range: last_30_days`, filtered to meetings Ben captured or is listed as a participant on.
 - `get_meetings` for those IDs, in batches of 10 (the tool's maximum).
+- `get_meeting_transcript` once per meeting. It returns a short warning preamble followed by a JSON object; only its `transcript` field is kept. A meeting whose transcript call errors (no recording, or the workspace denies transcript access) gets an empty `Transcript` section instead of failing the sync.
 
-Both tools return XML-like text (`<meetings_data><meeting ...>`), which is parsed with `xml.etree`. The sync fails if `get_meetings` returns a different number of meetings than `list_meetings` listed.
+The first two return XML-like text (`<meetings_data><meeting ...>`), which is parsed with `xml.etree`. The sync fails if `get_meetings` returns a different number of meetings than `list_meetings` listed.
 
 ### Writing
 
@@ -80,6 +81,10 @@ url: https://notes.granola.ai/d/6ebe35bf-f1e5-40f3-803a-22c2baa98e79
 ## Enhanced notes
 
 (Granola's AI summary, verbatim)
+
+## Transcript
+
+(the full verbatim transcript, as `Microphone:` / `System audio (<name>):` lines)
 ```
 
 - `date` is the meeting's local start time as Granola reports it; the timezone is dropped.
@@ -153,8 +158,8 @@ Any error during a sync shows a macOS notification titled **Granola sync failed*
 
 ## Limitations
 
-- **Free plan**: only the last 30 days are reachable, and transcripts (`get_meeting_transcript`) are not available. Anything older than 30 days that was never synced can't be recovered this way. Granola's CSV export (Settings → Profile → Generate CSV) covers full history as a one-off backup.
-- **Rate limit**: Granola's MCP averages around 100 requests per minute. A sync uses 1 + ⌈meetings / 10⌉ tool calls, so this is not a concern.
+- **Free plan**: only the last 30 days are reachable, and transcripts (`get_meeting_transcript`) are not available, so the `Transcript` sections stay empty. Anything older than 30 days that was never synced can't be recovered this way. Granola's CSV export (Settings → Profile → Generate CSV) covers full history as a one-off backup.
+- **Rate limit**: Granola's MCP averages around 100 requests per minute. A sync uses 1 + ⌈meetings / 10⌉ + meetings tool calls (about 50 for a month of meetings), made one at a time, so this is not a concern.
 - **Undocumented format**: the XML-like tool output isn't a documented contract. If Granola changes it, parsing may break or return no meetings. Check the `synced N meetings` count in the log.
 - **Refresh token lifetime** is not documented by Granola. Expect to rerun `login` occasionally.
 
@@ -163,7 +168,7 @@ Any error during a sync shows a macOS notification titled **Granola sync failed*
 `daily_actions.sh` builds a morning digest of action items from the previous workday's meetings (Friday's on Mondays):
 
 1. Runs `granola_sync.py` to pick up meetings that ended after the 18:00 sync.
-2. Pipes every note in `meetings/<day>/` into `claude -p` (Sonnet, no tools, no MCP servers, no user settings) and asks for action items, including ones outside `Next Steps` sections.
+2. Pipes every note in `meetings/<day>/`, minus its `Transcript` section, into `claude -p` (Sonnet, no tools, no MCP servers, no user settings) and asks for action items, including ones outside `Next Steps` sections.
 3. Writes `actions/<day>.md` as a checklist: Ben's items first, then everyone else's with the owner in bold (`Unassigned` when nobody owns it). Each item links back to its Granola note.
 4. Shows a dialog with the item count and an **Open** button that opens the digest.
 
